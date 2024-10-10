@@ -1,30 +1,50 @@
 import { restaurantList } from "../config";
 import RestaurantCard from "./RestaurantCard";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Shimmer from "./shimmer";
+import { Link } from "react-router-dom";
 
 function filterData(searchText, restaurants) {
-  const filterData= restaurants.filter((restaurant) =>
-    restaurant?.data?.name.toLowerCase().includes(searchText.toLowerCase())
+  const filteredData = restaurants.filter((restaurant) =>
+    restaurant?.info?.name.toLowerCase().includes(searchText.toLowerCase())
   );
-  return filterData;
+  return filteredData;
 }
 
 const Body = () => {
+  const [allRestaurants, setAllRestaurants] = useState([]);
+  const [filteredRestaurants, setFilteredRestaurants] = useState([]);
   const [searchText, setSearchText] = useState(""); //to create state variable
-  const [restaurants, setRestaurants] = useState(restaurantList);
 
-  useEffect(()=>{
+  useEffect(() => {
     //API call
     getRestaurants();
-  },[]);
+  }, []);
 
-  async function getRestaurants(){
-    const data=await fetch("https://www.swiggy.com/dapi/restaurants/list/v5?lat=20.27060&lng=85.83340&is-seo-homepage-enabled=true&page_type=DESKTOP_WEB_LISTING");
-    const json=await data.json();
-    setRestaurants(json?.data?.cards[2]?.data?.cards);
+  async function getRestaurants() {
+    try {
+      const proxyUrl = "https://thingproxy.freeboard.io/fetch/"; // Add this back if needed.
+      const targetUrl =
+        "https://www.swiggy.com/dapi/restaurants/list/v5?lat=20.27060&lng=85.83340";
+      const data = await fetch(proxyUrl + targetUrl);
+      const json = await data.json();
+      setAllRestaurants(
+        json?.data?.cards[4]?.card?.card?.gridElements?.infoWithStyle?.restaurants
+      );
+      setFilteredRestaurants(
+        json?.data?.cards[4]?.card?.card?.gridElements?.infoWithStyle?.restaurants
+      );
+      console.log(json);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
   }
 
-  return (
+  if (!allRestaurants) return null;
+
+  return allRestaurants.length === 0 ? (
+    <Shimmer />
+  ) : (
     <>
       <div className="search-container">
         <input
@@ -33,17 +53,16 @@ const Body = () => {
           placeholder="Search"
           value={searchText}
           onChange={(e) => {
-            //e.target.value => whatever we write in input box
+            // Update searchText when typing in the input box
             setSearchText(e.target.value);
           }}
         />
         <button
           className="search-btn"
           onClick={() => {
-            //need to filter the data
-            //update the state - restaurants variable
-          const data = filterData(searchText, restaurants);
-          setRestaurants(data);
+            // Filter the data and update the state
+            const data = filterData(searchText, allRestaurants);
+            setFilteredRestaurants(data);
           }}
         >
           Search
@@ -51,11 +70,25 @@ const Body = () => {
       </div>
 
       <div className="restaurant-list">
-        {restaurants.map((restaurant) => {
-          return (
-            <RestaurantCard key={restaurant.data.id} {...restaurant.data} />
-          );
-        })}
+        {filteredRestaurants.length === 0 ? (
+          <h1>No restaurants found.</h1>
+        ) : (
+          filteredRestaurants.map((restaurant, index) => {
+            const { info } = restaurant;
+
+            // Ensure `info` and `info.id` are available
+            if (!info || !info.id) {
+              console.error("Missing data for restaurant:", restaurant);
+              return null;
+            }
+
+            return (
+              <Link to={`/restaurant/${restaurant.info.id}`} key={restaurant.info.id}>
+                <RestaurantCard {...restaurant.info} />
+              </Link>
+            );
+          })
+        )}
       </div>
     </>
   );
